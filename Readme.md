@@ -25,11 +25,19 @@ sudo iptables -t nat -I OUTPUT -p tcp -d localhost --dport 80 -j REDIRECT --to-p
 ### Примеры запуска сервера 
 Запуск сервера с работой в 10 потоков на порту 8080.
 ```bash
-python httpd.py -w 10
+python otus_server/httpd.py -w 10
 ```
 
 ## Запуск тестов
-Для запуска тестов достаточно ввести команду
+Для запуска тестов вначале необходимо обновить подмодули 
 ```bash
-pytest -v tests/
+git submodule init
+```
+Далее запустить сам сервер в отдельном терминале
+```bash
+python otus_server/httpd.py
+```
+После этого запустить непосредственно сами тесты
+```bash
+ python tests/http-test-suite/httptest.py
 ```
