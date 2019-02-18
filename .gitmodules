@@ -1,0 +1,3 @@
+[submodule "tests/http-test-suite"]
+	path = tests/http-test-suite
+	url = https://github.com/s-stupnikov/http-test-suite.git
