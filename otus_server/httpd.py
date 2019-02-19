@@ -154,10 +154,12 @@ if __name__ == '__main__':
     op = OptionParser()
     op.add_option("-p", "--port", action="store", type=int, default=DEFAULT_CONFIG['PORT'])
     op.add_option("-w", "--workers", action="store", type=int, default=DEFAULT_CONFIG['WORKERS'])
+    op.add_option("-r", "--rootdir", action="store", default=DEFAULT_CONFIG['ROOT_DIRECTORY'])
     (opts, args) = op.parse_args()
     config = DEFAULT_CONFIG.copy()
     config["PORT"] = opts.port
     config["WORKERS"] = opts.workers
+    config["ROOT_DIRECTORY"] = opts.rootdir
     logging.info("Starting server at port {} with workers {}".format(config["PORT"], config["WORKERS"]))
     try:
         main(config)
