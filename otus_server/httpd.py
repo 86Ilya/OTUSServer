@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 
 import socket
 import logging
@@ -15,6 +17,10 @@ METHODS_ROUTER = {"GET": get, "HEAD": head}
 
 
 def not_allowed_response():
+    """
+    Метод формирующий HTTP ответ Not allowed
+    :return string:
+    """
     header = RESPONSE_HEADERS[METHOD_NOT_ALLOWED]
     template = RESPONSE_SHORT_TEMPLATE
     timestamp = datetime.today().strftime("%a, %d %b %Y %H:%M:%S %Z")
@@ -23,6 +29,10 @@ def not_allowed_response():
 
 
 def timeout_response():
+    """
+    Метод формирующий HTTP ответ Request Timeout'
+    :return string:
+    """
     header = RESPONSE_HEADERS[REQUEST_TIMEOUT]
     template = RESPONSE_SHORT_TEMPLATE
     timestamp = datetime.today().strftime("%a, %d %b %Y %H:%M:%S %Z")
@@ -31,6 +41,9 @@ def timeout_response():
 
 
 class Worker(Thread):
+    """
+    Класс рабочего(воркера), основой класс программы, отвечает за обработку HTTP запросов.
+    """
     def __init__(self, queue, config):
         Thread.__init__(self)
         self.queue = queue
@@ -38,7 +51,6 @@ class Worker(Thread):
         self.start()
         self.buffsize = config["MAX_BUFFSIZE"]
         self.root_dir = config["ROOT_DIRECTORY"]
-        self.max_read_attempts = config["MAX_SOCKET_READ_ATTEMPTS"]
 
     def run(self):
         while True:
@@ -49,10 +61,9 @@ class Worker(Thread):
             recv_buff = bytearray(self.buffsize)
             recv_mview = memoryview(recv_buff)
             match = None
-            attempts = self.max_read_attempts
 
             try:
-                while attempts > 0:
+                while True:
                     nbytes = connection.recv_into(recv_mview)
                     if not nbytes:
                         break
@@ -61,7 +72,6 @@ class Worker(Thread):
                     match = REQUEST_PATTERN.match(recv_buff[:size])
                     if match:
                         break
-                    attempts -= 1
 
                 logging.debug("{}: recv_buff content is: {}".format(current_thread().name, recv_buff))
                 if match:
@@ -95,6 +105,9 @@ class Worker(Thread):
 
 
 class ThreadPool(object):
+    """
+    Класс организующий распределение заданий между потоками
+    """
     def __init__(self, num_threads, config):
         self.queue = Queue(num_threads)
         for _ in range(num_threads):
@@ -108,6 +121,12 @@ class ThreadPool(object):
 
 
 def method_handler(parsed_request, root_dir):
+    """
+    Функция-роутер. Распредляет запросы по соответствующим обработчикам.
+    :param dict parsed_request:
+    :param basestring root_dir:
+    :return string: Сформированный HTTP ответ
+    """
     method = parsed_request.get("method", None)
     method = str(method)
 
@@ -129,6 +148,12 @@ def method_handler(parsed_request, root_dir):
 
 
 def main(config):
+    """
+    Главная функция программы. На вход принимает конфиг.
+    Далее создаёт HTTP соединение, пул потоков и начинает принимать соединения.
+    :param dict config:
+    :return:
+    """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((config['HOST'], config['PORT']))

@@ -40,5 +40,5 @@ python otus_server/httpd.py
 ```
 После этого запустить непосредственно сами тесты
 ```bash
- python tests/http-test-suite/httptest.py
+python tests/http-test-suite/httptest.py
 ```

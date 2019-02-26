@@ -12,8 +12,7 @@ DEFAULT_CONFIG = {'HOST': '',
                   'SOCKET_TIMEOUT': 15.0,
                   'ROOT_DIRECTORY': "./www",
                   'WORKERS': 10,
-                  'MAX_BUFFSIZE': 1024,
-                  'MAX_SOCKET_READ_ATTEMPTS': 5}
+                  'MAX_BUFFSIZE': 1024}
 
 
 HTTPResponse = namedtuple('HTTPResponse', 'code mime_type length content')
@@ -33,10 +32,6 @@ MIME_TYPES = {'html': 'text/html',
               'swf': 'application/x-shockwave-flash'}
 
 ENDLINE = '\r\n'
-# REQUEST_PATTERN = re.compile(r'(?P<method>[A-Z]*?)\s+(?P<resource>\S*?)(?P<params>\?\S*?)?\s+(?:HTTP\/\d\.\d)(?:{crlf}'
-#                               '(?P<header>[\S\s]*?))?'
-#                               '(?P<end_request>{crlf}{crlf})?'
-#                               '(?P<data>.*)?'.format(crlf=ENDLINE), re.MULTILINE)
 REQUEST_PATTERN = re.compile(r'(?P<method>[A-Z]*?)\s+(?P<resource>\S*?)(?P<params>\?\S*?)?\s+(?:HTTP\/\d\.\d{crlf})'
                              r'([\s\S]*)?'
                              r'(?P<end_request>{crlf}{crlf})?'
