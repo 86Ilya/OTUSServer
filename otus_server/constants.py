@@ -1,4 +1,5 @@
 import re
+import os
 from collections import namedtuple
 
 FORBIDDEN = 403
@@ -7,10 +8,11 @@ NOT_FOUND = 404
 METHOD_NOT_ALLOWED = 405
 REQUEST_TIMEOUT = 408
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = {'HOST': '',
                   'PORT': 8080,
                   'SOCKET_TIMEOUT': 15.0,
-                  'ROOT_DIRECTORY': "./www",
+                  'ROOT_DIRECTORY': os.path.join(BASE_DIR, "www").decode('utf-8'),
                   'WORKERS': 10,
                   'MAX_BUFFSIZE': 1024}
 

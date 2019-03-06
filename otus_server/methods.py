@@ -26,7 +26,7 @@ def get(parsed_request, root_dir):
     if resource:
         resource = urllib.unquote(str(resource)).decode('utf8')
         path = os.path.join(root_dir, resource.lstrip('/'))
-        logging.debug("{}: Trying to get file: {}".format(current_thread().name, path))
+        logging.debug(u"{}: Trying to get file: {}".format(current_thread().name, path))
         local_file = get_file(path)
         if local_file in [FORBIDDEN, NOT_FOUND]:
             return HTTPResponse(code=local_file, mime_type=None, length=None, content=None)

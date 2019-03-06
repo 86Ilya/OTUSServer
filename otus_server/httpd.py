@@ -18,7 +18,7 @@ METHODS_ROUTER = {"GET": get, "HEAD": head}
 
 def not_allowed_response():
     """
-    Метод формирующий HTTP ответ Not allowed
+    Функция формирующая HTTP ответ Not allowed
     :return string:
     """
     header = RESPONSE_HEADERS[METHOD_NOT_ALLOWED]
@@ -30,7 +30,7 @@ def not_allowed_response():
 
 def timeout_response():
     """
-    Метод формирующий HTTP ответ Request Timeout'
+    Функция формирующая HTTP ответ Request Timeout'
     :return string:
     """
     header = RESPONSE_HEADERS[REQUEST_TIMEOUT]
@@ -44,6 +44,7 @@ class Worker(Thread):
     """
     Класс рабочего(воркера), основой класс программы, отвечает за обработку HTTP запросов.
     """
+
     def __init__(self, queue, config):
         Thread.__init__(self)
         self.queue = queue
@@ -54,9 +55,9 @@ class Worker(Thread):
 
     def run(self):
         while True:
-            logging.debug("{}: Waiting for connection from queue".format(current_thread().name))
+            logging.debug(u"{}: Waiting for connection from queue".format(current_thread().name))
             connection = self.queue.get()
-            logging.debug("{}: Got connection".format(current_thread().name))
+            logging.debug(u"{}: Got connection".format(current_thread().name))
             size = 0
             recv_buff = bytearray(self.buffsize)
             recv_mview = memoryview(recv_buff)
@@ -73,10 +74,10 @@ class Worker(Thread):
                     if match:
                         break
 
-                logging.debug("{}: recv_buff content is: {}".format(current_thread().name, recv_buff))
+                logging.debug(u"{}: recv_buff content is: {}".format(current_thread().name, recv_buff))
                 if match:
                     parsed_request = match.groupdict()
-                    logging.debug("{}: parsed request is: {}".format(current_thread().name, parsed_request))
+                    logging.debug(u"{}: parsed request is: {}".format(current_thread().name, parsed_request))
                     response = method_handler(parsed_request, self.root_dir)
                     logging.debug("{}: response is: {}".format(current_thread().name, response))
                     connection.sendall(response)
@@ -87,20 +88,20 @@ class Worker(Thread):
                 if size > 0 and not match:
                     connection.sendall(not_allowed_response())
                 else:
-                    logging.debug("{}: We have timeout error: {}".format(current_thread().name, error))
+                    logging.debug(u"{}: We have timeout error: {}".format(current_thread().name, error))
                     connection.sendall(timeout_response())
             except Exception as error:
-                error_msg = "{}: We have unexpected error: recv_buf is: '{}', error is: '{}'".format(
+                error_msg = u"{}: We have unexpected error: recv_buf is: '{}', error is: '{}'".format(
                     current_thread().name, recv_buff, error)
                 logging.debug(error_msg)
                 raise
             finally:
-                logging.debug("{}: Finished".format(current_thread().name))
+                logging.debug(u"{}: Finished".format(current_thread().name))
                 try:
-                    logging.debug("{}: Closing connection...".format(current_thread().name))
+                    logging.debug(u"{}: Closing connection...".format(current_thread().name))
                     connection.close()
                 except Exception as error:
-                    logging.debug("{}: Closing connection error: {}".format(current_thread().name, error))
+                    logging.debug(u"{}: Closing connection error: {}".format(current_thread().name, error))
                 self.queue.task_done()
 
 
@@ -108,6 +109,7 @@ class ThreadPool(object):
     """
     Класс организующий распределение заданий между потоками
     """
+
     def __init__(self, num_threads, config):
         self.queue = Queue(num_threads)
         for _ in range(num_threads):
@@ -158,18 +160,21 @@ def main(config):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((config['HOST'], config['PORT']))
     sock.listen(1)
-    logging.info("")
+    logging.info(
+        u"Starting web server on '{}:{}' with {} workers and {} as root dir".format(config['HOST'], config['PORT'],
+                                                                                    config['WORKERS'],
+                                                                                    config['ROOT_DIRECTORY']))
     pool = ThreadPool(config['WORKERS'], config)
 
     try:
         while True:
-            logging.debug("waiting for connection")
+            logging.debug(u"waiting for connection")
             connection, address = sock.accept()
             connection.settimeout(config['SOCKET_TIMEOUT'])
-            logging.debug("We have connection from: {}".format(connection))
+            logging.debug(u"We have connection from: {}".format(connection))
             pool.add_task(connection)
     except KeyboardInterrupt:
-        logging.info("")
+        logging.info(u"Keyboard interrupt. Stopping execution")
         pool.wait_completion()
 
 
@@ -185,8 +190,8 @@ if __name__ == '__main__':
     config["PORT"] = opts.port
     config["WORKERS"] = opts.workers
     config["ROOT_DIRECTORY"] = opts.rootdir
-    logging.info("Starting server at port {} with workers {}".format(config["PORT"], config["WORKERS"]))
+    logging.info(u"Starting server at port {} with workers {}".format(config["PORT"], config["WORKERS"]))
     try:
         main(config)
     except Exception as error:
-        logging.exception("Unknown exception: {}".format(error))
+        logging.exception(u"Unknown exception: {}".format(error))
