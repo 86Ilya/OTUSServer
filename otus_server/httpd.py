@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import re
 import socket
 import logging
 from optparse import OptionParser
@@ -9,35 +10,12 @@ from datetime import datetime
 from Queue import Queue
 from threading import Thread, current_thread
 
-from methods import get, head
-from constants import RESPONSE_HEADERS, RESPONSE_SHORT_TEMPLATE, RESPONSE_GET_TEMPLATE, RESPONSE_HEAD_TEMPLATE, ENDLINE
-from constants import REQUEST_PATTERN, METHOD_NOT_ALLOWED, NOT_ALLOWED_RESPONSE, REQUEST_TIMEOUT, DEFAULT_CONFIG
+from methods import get, head, FileNotFound, MimeTypeNotRecognized
+from constants import RESPONSE_HEADERS, RESPONSE_SHORT_TEMPLATE, RESPONSE_GET_TEMPLATE, RESPONSE_HEAD_TEMPLATE
+from constants import METHOD_NOT_ALLOWED, NOT_ALLOWED_RESPONSE, DEFAULT_CONFIG, INTERNAL_CONFIG
+from helpers import not_found_response, not_allowed_response, timeout_response
 
 METHODS_ROUTER = {"GET": get, "HEAD": head}
-
-
-def not_allowed_response():
-    """
-    Функция формирующая HTTP ответ Not allowed
-    :return string:
-    """
-    header = RESPONSE_HEADERS[METHOD_NOT_ALLOWED]
-    template = RESPONSE_SHORT_TEMPLATE
-    timestamp = datetime.today().strftime("%a, %d %b %Y %H:%M:%S %Z")
-    res = template.format(header=header, date=timestamp, crlf=ENDLINE)
-    return res
-
-
-def timeout_response():
-    """
-    Функция формирующая HTTP ответ Request Timeout'
-    :return string:
-    """
-    header = RESPONSE_HEADERS[REQUEST_TIMEOUT]
-    template = RESPONSE_SHORT_TEMPLATE
-    timestamp = datetime.today().strftime("%a, %d %b %Y %H:%M:%S %Z")
-    res = template.format(header=header, date=timestamp, crlf=ENDLINE)
-    return res
 
 
 class Worker(Thread):
@@ -52,38 +30,73 @@ class Worker(Thread):
         self.start()
         self.buffsize = config["MAX_BUFFSIZE"]
         self.root_dir = config["ROOT_DIRECTORY"]
+        self.end_line = config["ENDLINE"]
+        self.req_pattern = re.compile(config["REQUEST_PATTERN"].format(crlf=self.end_line), re.MULTILINE)
+
+    def read(self, connection):
+        """
+        Метод читает данные из соединения
+        :param connection:
+        :return re.Match object match, int size: Возвращаем объект re.Match, в котором возможно есть совпадения по
+        регулярному выражению self.req_pattern.
+        Так же возвращаем количество прочитанных байт.
+        """
+        size = 0
+        recv_buff = bytearray(self.buffsize)
+        recv_mview = memoryview(recv_buff)
+        match = None
+
+        while True:
+            nbytes = connection.recv_into(recv_mview)
+            if not nbytes:
+                break
+            size += nbytes
+            recv_mview = recv_mview[nbytes:]
+            match = self.req_pattern.match(recv_buff[:size])
+            if match:
+                break
+        logging.debug(u"{}: recv_buff content is: {}".format(current_thread().name, recv_buff))
+        return match, size
+
+    def send_response(self, connection, match):
+        """
+        Метод обрабатывает полученный запрос: определяет метод для генерации ответа и посылает HTTPResponse
+        :param connection:
+        :param re.Match object match:
+        :return:
+        """
+        if match:
+            parsed_request = match.groupdict()
+            logging.debug(u"{}: parsed request is: {}".format(current_thread().name, parsed_request))
+            response = method_handler(parsed_request, self.root_dir)
+            logging.debug("{}: response is: {}".format(current_thread().name, response))
+            connection.sendall(response)
+        else:
+            connection.sendall(not_allowed_response())
+
+    def get_connection(self):
+        """
+        Данный метод просто агрегирует несколько вызовов, чтобы не загромождать главный цикл
+        :return:
+        """
+        logging.debug(u"{}: Waiting for connection from queue".format(current_thread().name))
+        connection = self.queue.get()
+        logging.debug(u"{}: Got connection".format(current_thread().name))
+        return connection
 
     def run(self):
         while True:
-            logging.debug(u"{}: Waiting for connection from queue".format(current_thread().name))
-            connection = self.queue.get()
-            logging.debug(u"{}: Got connection".format(current_thread().name))
-            size = 0
-            recv_buff = bytearray(self.buffsize)
-            recv_mview = memoryview(recv_buff)
-            match = None
-
+            connection = self.get_connection()
             try:
-                while True:
-                    nbytes = connection.recv_into(recv_mview)
-                    if not nbytes:
-                        break
-                    size += nbytes
-                    recv_mview = recv_mview[nbytes:]
-                    match = REQUEST_PATTERN.match(recv_buff[:size])
-                    if match:
-                        break
+                match, size = self.read(connection)
+                self.send_response(connection, match)
 
-                logging.debug(u"{}: recv_buff content is: {}".format(current_thread().name, recv_buff))
-                if match:
-                    parsed_request = match.groupdict()
-                    logging.debug(u"{}: parsed request is: {}".format(current_thread().name, parsed_request))
-                    response = method_handler(parsed_request, self.root_dir)
-                    logging.debug("{}: response is: {}".format(current_thread().name, response))
-                    connection.sendall(response)
-                else:
-                    connection.sendall(not_allowed_response())
-
+            except FileNotFound as error:
+                logging.debug(u"{}: {}".format(current_thread().name, error))
+                connection.sendall(not_found_response())
+            except MimeTypeNotRecognized as error:
+                logging.debug(u"{}: {}".format(current_thread().name, error))
+                connection.sendall(not_allowed_response())
             except socket.timeout as error:
                 if size > 0 and not match:
                     connection.sendall(not_allowed_response())
@@ -91,9 +104,7 @@ class Worker(Thread):
                     logging.debug(u"{}: We have timeout error: {}".format(current_thread().name, error))
                     connection.sendall(timeout_response())
             except Exception as error:
-                error_msg = u"{}: We have unexpected error: recv_buf is: '{}', error is: '{}'".format(
-                    current_thread().name, recv_buff, error)
-                logging.debug(error_msg)
+                # Эта ошибка будет обработана в главном цикле
                 raise
             finally:
                 logging.debug(u"{}: Finished".format(current_thread().name))
@@ -137,7 +148,7 @@ def method_handler(parsed_request, root_dir):
     else:
         response = METHODS_ROUTER[method](parsed_request, root_dir)
     header = RESPONSE_HEADERS.get(response.code, RESPONSE_HEADERS[METHOD_NOT_ALLOWED])
-    if not response.content and response.length:
+    if not response.content:
         template = RESPONSE_HEAD_TEMPLATE
     elif response.content and response.length:
         template = RESPONSE_GET_TEMPLATE
@@ -145,7 +156,7 @@ def method_handler(parsed_request, root_dir):
         template = RESPONSE_SHORT_TEMPLATE
     timestamp = datetime.today().strftime("%a, %d %b %Y %H:%M:%S %Z")
     res = template.format(header=header, date=timestamp, length=response.length, mime_type=response.mime_type,
-                          content=response.content, crlf=ENDLINE)
+                          content=response.content, crlf=config['ENDLINE'])
     return res
 
 
@@ -159,7 +170,7 @@ def main(config):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((config['HOST'], config['PORT']))
-    sock.listen(1)
+    sock.listen(config['WORKERS'])
     logging.info(
         u"Starting web server on '{}:{}' with {} workers and {} as root dir".format(config['HOST'], config['PORT'],
                                                                                     config['WORKERS'],
@@ -190,6 +201,7 @@ if __name__ == '__main__':
     config["PORT"] = opts.port
     config["WORKERS"] = opts.workers
     config["ROOT_DIRECTORY"] = opts.rootdir
+    config.update(INTERNAL_CONFIG)
     logging.info(u"Starting server at port {} with workers {}".format(config["PORT"], config["WORKERS"]))
     try:
         main(config)

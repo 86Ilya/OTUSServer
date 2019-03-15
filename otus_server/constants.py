@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import re
 import os
 from collections import namedtuple
@@ -11,11 +12,17 @@ REQUEST_TIMEOUT = 408
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = {'HOST': '',
                   'PORT': 8080,
-                  'SOCKET_TIMEOUT': 15.0,
                   'ROOT_DIRECTORY': os.path.join(BASE_DIR, "www").decode('utf-8'),
-                  'WORKERS': 10,
-                  'MAX_BUFFSIZE': 1024}
+                  'WORKERS': 10}
 
+INTERNAL_CONFIG = {'MAX_BUFFSIZE': 1024,
+                   'SOCKET_TIMEOUT': 15.0,
+                   'ENDLINE': '\r\n',
+                   'REQUEST_PATTERN': r'(?P<method>[A-Z]*?)\s+(?P<resource>\S*?)'
+                                      r'(?P<params>\?\S*?)?\s+(?:HTTP\/\d\.\d{crlf})'
+                                      r'([\s\S]*)?'
+                                      r'(?P<end_request>{crlf}{crlf})?'
+                                      r'([\s\S]*)?'}
 
 HTTPResponse = namedtuple('HTTPResponse', 'code mime_type length content')
 FILE = namedtuple('FILE', 'ext content length')
@@ -33,11 +40,6 @@ MIME_TYPES = {'html': 'text/html',
               'gif': 'image/gif',
               'swf': 'application/x-shockwave-flash'}
 
-ENDLINE = '\r\n'
-REQUEST_PATTERN = re.compile(r'(?P<method>[A-Z]*?)\s+(?P<resource>\S*?)(?P<params>\?\S*?)?\s+(?:HTTP\/\d\.\d{crlf})'
-                             r'([\s\S]*)?'
-                             r'(?P<end_request>{crlf}{crlf})?'
-                             r'([\s\S]*)?'.format(crlf=ENDLINE), re.MULTILINE)
 
 RESPONSE_GET_TEMPLATE = "{header}{crlf}" \
                         "Date: {date},{crlf}" \
